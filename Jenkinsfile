@@ -4,7 +4,7 @@ pipeline {
         stage('test') {
             agent { label 'master'}
             steps {
-                stash name: 'scripts', includes: 'runtest.cmd,um2junit.rb' 
+                stash name: 'scripts', includes: 'RunTest.cmd,um2junit.rb' 
                 configFileProvider(
 					[configFile(fileId: 'usemango', targetLocation: 'test.props'),
 					configFile(fileId: 'testset', targetLocation: 'list.txt')]) {
