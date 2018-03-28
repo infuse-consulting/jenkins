@@ -4,6 +4,7 @@ pipeline {
         stage('test') {
             agent { label 'master'}
             steps {
+                stash name: 'scripts', includes: 'runtest.cmd,um2junit.rb' 
                 configFileProvider(
 					[configFile(fileId: 'usemango', targetLocation: 'test.props'),
 					configFile(fileId: 'testset', targetLocation: 'list.txt')]) {
@@ -17,6 +18,7 @@ pipeline {
 							branches[tn] = {
 								node('usemango') {
 									try {
+                                        unstash 'scripts'
 										bat "runtest.cmd ${props.server} ${props.project} \"${tn}\""
 									}
 									finally {
