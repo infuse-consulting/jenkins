@@ -9,7 +9,7 @@ pipeline {
 					[configFile(fileId: env.JOB_NAME, targetLocation: 'test.props')]) {
 					script {
 						def props = readProperties file: 'test.props'
-						bat "ruby listtests.rb jenkins@usemango.co.uk ${props.server} ${props.project} ${props.folder} > list.txt"
+						sh "ruby listtests.rb jenkins@usemango.co.uk ${props.server} ${props.project} ${props.folder} > list.txt"
 						def tests = readFile('list.txt').split('\\r?\\n')
 						def branches = [:]
 						for (testName in tests) {
