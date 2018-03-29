@@ -1,11 +1,13 @@
 require 'json'
 require 'rest-client'
 
+PG_SIZE = 200
+
 # Class to get things from the rest API
 class UMClient
 
     def initialize(url)
-        @url = url
+        @url = url.end_with?('/') ? url : url + '/'
         @cookies = {}
     end
   
@@ -37,6 +39,21 @@ class UMClient
         response = post(sub_url, object.to_json, options)
     end
 
+    def full_url(url)
+        @url + url
+    end
+
+    def tests_in_project(project)
+        offset = 0
+        tests = []
+        begin
+            page = get_json_parsed("projects/#{project}/tests?offset=#{offset}&pageSize=#{PG_SIZE}")
+            offset = offset + page["Items"].size
+            page["Items"].each { |t| tests.push t }
+        end while offset < page["FullCount"]
+        tests
+    end
+
 end
 
 if ARGV.length != 4
@@ -53,3 +70,8 @@ folder = ARGV[3]
 client = UMClient.new(url)
 login = { email: user, username: 'test.user' }
 client.post_json('users/login', login)
+
+project_tests = client
+    .tests_in_project(project)
+    .select { |test| test["Folder"].downcase == folder.downcase }
+    .each { |test| puts test["Name"] }
