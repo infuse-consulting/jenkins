@@ -1,38 +1,84 @@
 #!groovy
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
 
 node {
 	stage('Read test names') {
-		echo getAuthenticationCookies('http://52.215.44.149:5000', [Email:"james.johnson@infuse.it",Password:"usemangouser",ExecutionOnly:true])
+	    stash name: 'scripts', includes: 'RunTest.cmd,um2junit.rb'
+	    withCredentials([usernamePassword(credentialsId: 'usemango', usernameVariable: 'user', passwordVariable: 'pwd')]) {
+            configFileProvider([configFile(fileId: env.JOB_NAME, targetLocation: 'test.props')]) {
+                def props = readProperties file: 'test.props'
+                echo props.server
+                def credentials = [Email:user,Password:pwd,ExecutionOnly:true]
+                String cookie = getAuthenticationCookie(props.server, credentials)
+                def tests = getTests(props.server, props.project, props.folder, cookie)
+                tests.each { t -> echo t }
+                def testJobs = tests.collectEntries {
+                    [it : transformIntoStep(props.server, props.project, it)]
+                }
+                parallel testJobs
+            }
+	    }
 	}
 }
 
-def getAuthenticationCookies(String requestUrl, Object data) {
-    URL url = new URL(requestUrl);
-    HttpURLConnection conn = url.openConnection();
-    conn.setDoOutput(true);
-    conn.setRequestMethod("POST");
-    conn.setRequestProperty("Content-Type", "application/json");
-    OutputStreamWriter out = new OutputStreamWriter(conn.getOutputStream());
-    out.write(JsonOutput.toJson(data));
-    out.flush();
-    out.close();
-    conn.connect();
-    Map<String, List<String>> headers = conn.getHeaderFields();
-    if (headers.containsKey("Set-Cookie"))
-    {
-        return headers.get("Set-Cookie");
-    }
+def getAuthenticationCookie(String baseUrl, Object data) {
+    URL url = new URL("${baseUrl}/session")
+    HttpURLConnection conn = url.openConnection()
+    conn.setDoOutput(true)
+    conn.setRequestMethod("POST")
+	setRequestContent(conn, data)
+    conn.connect()
+    List<String> cookies = conn.getHeaderFields().get("Set-Cookie")
+    if (cookies.any()) {
+		return cookieValue(cookies.first())
+	}
     else
-    {
-        return new ArrayList<String>();
-    }
+        throw new Exception("No cookies found")
 }
 
-def getHttpRequest(String requestUrl){    
-	URL url = new URL(requestUrl);
-	url.getText();
-	//HttpURLConnection connection = url.openConnection();    
-	//connection.setRequestMethod("GET");
-	//connection.doOutput = true;   
-	//connection.connect();    
-} 
+def cookieValue(String cookieHeader) {
+	return cookieHeader.substring(0, cookieHeader.indexOf(";"))
+}
+
+def setRequestContent(HttpURLConnection conn, Object data) {
+    conn.setRequestProperty("Content-Type", "application/json")
+    OutputStreamWriter out = new OutputStreamWriter(conn.getOutputStream())
+    out.write(JsonOutput.toJson(data))
+    out.flush()
+    out.close()
+}
+
+def getTests(String baseUrl, String project, String folder, String authCookie) {
+    int pageSize = 20
+    int offset = 0
+    def tests = []
+    def jsonSlurper = new JsonSlurper()
+    while(true) {
+        URL url = new URL("${baseUrl}/projects/${project}/tests?offset=${offset}&pageSize=${pageSize}");
+        String content = url.getText(requestProperties:['Cookie':authCookie]);
+        def testPage = jsonSlurper.parseText(content)
+        def testsInFolder = testPage.Items.findResults { test -> test.Folder == folder ? test : null }
+        testsInFolder.each{test -> tests << test.Name}
+        offset += testPage.Items.size()
+        if (offset >= testPage.FullCount){
+            break
+        }
+    }
+    return tests
+}
+
+def transformIntoStep(server, project, testName) {
+    return {
+        node('usemango') {
+            try {
+				unstash 'scripts'
+				bat "runtest.cmd ${server} ${project} \"${testName}\""
+			}
+			finally {
+				bat "um2junit.rb \"%PROGRAMDATA%\\useMango\\logs\\run.log\" > junit.xml"
+				junit 'junit.xml'
+			}
+		}
+	}
+}
