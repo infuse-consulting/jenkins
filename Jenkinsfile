@@ -13,7 +13,8 @@ node {
                 String cookie = getAuthenticationCookie(props.server, credentials)
                 def tests = getTests(props.server, props.project, props.folder, cookie)
                 def testJobs = [:]
-                for (tn in tests) {
+                for (testname in tests) {
+                    def tn = testname
                     echo "Scheduling ${tn}"
                     testJobs[tn] = {
                         node('usemango') {
