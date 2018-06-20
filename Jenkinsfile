@@ -4,7 +4,7 @@ import groovy.json.JsonSlurper
 
 node {
 	stage('Read test names') {
-	    stash name: 'scripts', includes: 'RunTest.cmd,um2junit.rb'
+	    stash name: 'scripts', includes: 'um2junit.rb'
 	    withCredentials([usernamePassword(credentialsId: 'usemango', usernameVariable: 'user', passwordVariable: 'pwd')]) {
             configFileProvider([configFile(fileId: env.JOB_NAME, targetLocation: 'test.props')]) {
                 def props = readProperties file: 'test.props'
@@ -19,7 +19,7 @@ node {
                         node('usemango') {
                             try {
                                 unstash 'scripts'
-                                bat "runtest.cmd ${server} ${project} \"${testName}\" ${user} ${pwd}"
+                                bat "\"%programfiles(x86)%\\Infuse Consulting\\useMango\\App\\MangoMotor.exe\" -s ${server} -p ${project} --testname \"${testName}\" -e ${user} -a ${pwd}"
                             }
                             finally {
                                 bat "um2junit.rb \"%PROGRAMDATA%\\useMango\\logs\\run.log\" > junit.xml"
