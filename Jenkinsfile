@@ -72,6 +72,7 @@ def transformIntoStep(server, project, testName, user, pwd) {
     return {
         node('usemango') {
             try {
+                deleteDir
 				unstash 'scripts'
 				bat "runtest.cmd ${server} ${project} \"${testName}\" ${user} ${pwd}"
 			}
