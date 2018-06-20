@@ -8,7 +8,7 @@ node {
 	    withCredentials([usernamePassword(credentialsId: 'usemango', usernameVariable: 'user', passwordVariable: 'pwd')]) {
             configFileProvider([configFile(fileId: env.JOB_NAME, targetLocation: 'test.props')]) {
                 def props = readProperties file: 'test.props'
-                echo props.server
+                echo "Running tests for server ${props.server}, project ${props.project}, folder ${props.folder}"
                 def credentials = [Email:user,Password:pwd,ExecutionOnly:true]
                 String cookie = getAuthenticationCookie(props.server, credentials)
                 def tests = getTests(props.server, props.project, props.folder, cookie)
