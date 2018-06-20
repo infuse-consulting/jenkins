@@ -14,7 +14,7 @@ node {
                 def tests = getTests(props.server, props.project, props.folder, cookie)
                 tests.each { t -> echo t }
                 def testJobs = tests.collectEntries {
-                    [it : transformIntoStep(props.server, props.project, it)]
+                    [it : transformIntoStep(props.server, props.project, it, user, pwd)]
                 }
                 parallel testJobs
             }
@@ -68,12 +68,12 @@ def getTests(String baseUrl, String project, String folder, String authCookie) {
     return tests
 }
 
-def transformIntoStep(server, project, testName) {
+def transformIntoStep(server, project, testName, user, pwd) {
     return {
         node('usemango') {
             try {
 				unstash 'scripts'
-				bat "runtest.cmd ${server} ${project} \"${testName}\""
+				bat "runtest.cmd ${server} ${project} \"${testName}\" ${user} ${pwd}"
 			}
 			finally {
 				bat "um2junit.rb \"%PROGRAMDATA%\\useMango\\logs\\run.log\" > junit.xml"
