@@ -12,9 +12,21 @@ node {
                 def credentials = [Email:user,Password:pwd,ExecutionOnly:true]
                 String cookie = getAuthenticationCookie(props.server, credentials)
                 def tests = getTests(props.server, props.project, props.folder, cookie)
-                tests.each { t -> echo t }
-                def testJobs = tests.collectEntries {
-                    [it : transformIntoStep(props.server, props.project, it, user, pwd)]
+                def testJobs = [:]
+                for (tn in tests) {
+                    echo "Scheduling ${tn}"
+                    branches[tn] = {
+                        node('usemango') {
+                            try {
+                                unstash 'scripts'
+                                bat "runtest.cmd ${server} ${project} \"${testName}\" ${user} ${pwd}"
+                            }
+                            finally {
+                                bat "um2junit.rb \"%PROGRAMDATA%\\useMango\\logs\\run.log\" > junit.xml"
+                                junit 'junit.xml'
+                            }
+                        }
+                    }
                 }
                 parallel testJobs
             }
@@ -66,20 +78,4 @@ def getTests(String baseUrl, String project, String folder, String authCookie) {
         }
     }
     return tests
-}
-
-def transformIntoStep(server, project, testName, user, pwd) {
-    return {
-        node('usemango') {
-            try {
-                deleteDir
-				unstash 'scripts'
-				bat "runtest.cmd ${server} ${project} \"${testName}\" ${user} ${pwd}"
-			}
-			finally {
-				bat "um2junit.rb \"%PROGRAMDATA%\\useMango\\logs\\run.log\" > junit.xml"
-				junit 'junit.xml'
-			}
-		}
-	}
 }
