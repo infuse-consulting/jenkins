@@ -15,7 +15,7 @@ node {
                 def testJobs = [:]
                 for (tn in tests) {
                     echo "Scheduling ${tn}"
-                    branches[tn] = {
+                    testJobs[tn] = {
                         node('usemango') {
                             try {
                                 unstash 'scripts'
