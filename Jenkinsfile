@@ -4,7 +4,7 @@ import groovy.json.JsonSlurper
 
 node {
 	stage('Read test names') {
-        sh "mv ../${env.JOB_NAME}@script/um2junit.rb ."
+        checkout scm
 	    stash name: 'scripts', includes: 'um2junit.rb'
         // Obtain credentials for accessing the useMango server, which should be stored in Jenkins with the ID of 'usemango'
 	    withCredentials([usernamePassword(credentialsId: 'usemango', usernameVariable: 'user', passwordVariable: 'pwd')]) {
