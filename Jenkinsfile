@@ -26,9 +26,8 @@ node {
                                 unstash 'scripts'
                                 bat "\"%programfiles(x86)%\\Infuse Consulting\\useMango\\App\\MangoMotor.exe\" -s ${props.server} -p ${props.project} --testname \"${tn}\" -e ${user} -a ${pwd}"
                             }
-                            finally {
-                                bat "um2junit.rb \"%PROGRAMDATA%\\useMango\\logs\\run.log\" > junit.xml"
-                                junit 'junit.xml'
+                            finally {                                
+                                junit \"%PROGRAMDATA%\\useMango\\logs\\junit.xml\"
                             }
                         }
                     }
