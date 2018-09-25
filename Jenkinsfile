@@ -25,7 +25,7 @@ node {
                                 bat "\"%programfiles(x86)%\\Infuse Consulting\\useMango\\App\\MangoMotor.exe\" -s ${props.server} -p ${props.project} --testname \"${tn}\" -e ${user} -a ${pwd}"
                             }
                             finally {                             
-                                junit "\"%PROGRAMDATA%\\useMango\\logs\\junit.xml\""
+                                junit "C:\\ProgramData\\useMango\\Logs\\junit.xml"
                             }
                         }
                     }
