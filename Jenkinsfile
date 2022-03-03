@@ -7,8 +7,7 @@ node {
     stage('Read and Execute tests') {
         // Obtain credentials for accessing the useMango server, which should be stored in Jenkins with the ID of 'usemango'
         withCredentials([
-                string(credentialsId: 'usemangoCreds', variable: 'usemangoCreds'),
-                string(credentialsId: 'ApiKey', variable: 'Apikey')
+                string(credentialsId: 'useMangoApiKey', variable: 'useMangoApiKey')
             ]) {
             // Obtain values for the server url, project name and folder name from a Jenkins config file, which have the ID
             // that matches the name of the current pipeline job.
@@ -23,19 +22,19 @@ node {
                 echo "Scheduling ${id}"
                     testJobs[id] = {
                         node('usemango') {
-                            wrap([$class: "MaskPasswordsBuildWrapper", varPasswordPairs: [[password: "$Apikey"]]]) {
+                            wrap([$class: "MaskPasswordsBuildWrapper", varPasswordPairs: [[password: "$useMangoApiKey"]]]) {
                                 dir ("${env.WORKSPACE}\\${tests[index]}") {
                                     deleteDir()
                                 }
                                 dir("${env.WORKSPACE}\\${tests[index]}") {
-                                    bat "curl -s --create-dirs -L -D \"${env.WORKSPACE}\\${tests[index]}\\response.txt\" -X GET \"${SCRIPTS_SERVICE_URL}/tests/${tests[index]}\" -H \"Authorization: APIKEY $Apikey\" --output \"${env.WORKSPACE}\\${tests[index]}\\${tests[index]}.pyz\""
-                                    String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"${env.WORKSPACE}\\${tests[index]}\\response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")                             
+                                    bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${SCRIPTS_SERVICE_URL}/tests/${tests[index]}\" -H \"Authorization: APIKEY $useMangoApiKey\" --output \"${tests[index]}.pyz\""
+                                    String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")                             
                                     echo "Test executable response code - ${httpCode}"
                                     if (httpCode.contains("200")) {
                                         echo "Executing - ${tests[index]}"
                                         try {
-                                            bat "\"%UM_PYTHON_PATH%\"" + ".exe " + "${tests[index]}.pyz -k $Apikey " + "-j result.xml"
-                                            if (fileExists("${env.WORKSPACE}\\${tests[index]}\\run.log")) {
+                                            bat "\"%UM_PYTHON_PATH%\"" + ".exe " + "${tests[index]}.pyz -k $useMangoApiKey " + "-j result.xml"
+                                            if (fileExists("run.log")) {
                                                     String run_id = powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')                             
                                                     testResults[tests[index]] = "${tests[index]} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                             } else {
@@ -44,7 +43,11 @@ node {
                                         } catch(Exception ex) {
                                             testResults[tests[index]] = "${tests[index]} (Failed) - Exception occured: ${ex.getMessage()}"
                                         } finally{
-                                                junit 'result.xml'
+                                            if (fileExists("result.xml")){
+                                                 junit "result.xml"
+                                            } else {
+                                                echo "Test failed to generate JUNIT file"
+                                            }
                                         }
                                     } else {
                                         testResults[tests[index]] = "${tests[index]} (Failed) - Unable to get scripted test: ${httpCode}"
@@ -53,7 +56,7 @@ node {
                             }
                         }
                     }
-                }
+            }
             parallel testJobs
             boolean allPassed = true
             int passed = 0
@@ -91,7 +94,7 @@ def getTests(String baseUrl) {
         HttpURLConnection conn = url.openConnection()
         conn.setRequestMethod("GET")
         conn.setDoInput(true)
-        conn.setRequestProperty("Authorization", "APIKEY $Apikey")
+        conn.setRequestProperty("Authorization", "APIKEY $useMangoApiKey")
         conn.connect()
         String content
         def responseCode = conn.responseCode
