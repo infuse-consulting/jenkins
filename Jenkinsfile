@@ -22,18 +22,18 @@ node {
                 echo "Scheduling ${id}"
                     testJobs[id] = {
                         node('usemango') {
-                            wrap([$class: "MaskPasswordsBuildWrapper", varPasswordPairs: [[password: "$useMangoApiKey"]]]) {
+                            wrap([$class: "MaskPasswordsBuildWrapper", varPasswordPairs: [[password: '%useMangoApiKey%']]]) {
                                 dir ("${env.WORKSPACE}\\${tests[index]}") {
                                     deleteDir()
                                 }
                                 dir("${env.WORKSPACE}\\${tests[index]}") {
-                                    bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${SCRIPTS_SERVICE_URL}/tests/${tests[index]}\" -H \"Authorization: APIKEY $useMangoApiKey\" --output \"${tests[index]}.pyz\""
+                                    bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${SCRIPTS_SERVICE_URL}/tests/${tests[index]}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index]}.pyz\""
                                     String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")                             
                                     echo "Test executable response code - ${httpCode}"
                                     if (httpCode.contains("200")) {
                                         echo "Executing - ${tests[index]}"
                                         try {
-                                            bat "\"%UM_PYTHON_PATH%\"" + ".exe " + "${tests[index]}.pyz -k $useMangoApiKey " + "-j result.xml"
+                                            bat "\"%UM_PYTHON_PATH%\" ${tests[index]}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                             if (fileExists("run.log")) {
                                                     String run_id = powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')                             
                                                     testResults[tests[index]] = "${tests[index]} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
