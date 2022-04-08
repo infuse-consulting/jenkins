@@ -18,30 +18,30 @@ node {
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
             def testResults = [:]
-            tests.eachWithIndex { id, index ->
-                echo "Scheduling ${id}"
-                    testJobs[id] = {
+            tests.eachWithIndex { test, index ->
+                echo "Scheduling ${test.Name}"
+                    testJobs[test.Id] = {
                         node('usemango') {
                             wrap([$class: "MaskPasswordsBuildWrapper", varPasswordPairs: [[password: '%useMangoApiKey%']]]) {
-                                dir ("${env.WORKSPACE}\\${tests[index]}") {
+                                dir ("${env.WORKSPACE}\\${tests[index].Id}") {
                                     deleteDir()
                                 }
-                                dir("${env.WORKSPACE}\\${tests[index]}") {
-                                    bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${SCRIPTS_SERVICE_URL}/tests/${tests[index]}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index]}.pyz\""
+                                dir("${env.WORKSPACE}\\${tests[index].Id}") {
+                                    bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${SCRIPTS_SERVICE_URL}/tests/${tests[index].Id}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index].Id}.pyz\""
                                     String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")                             
                                     echo "Test executable response code - ${httpCode}"
                                     if (httpCode.contains("200")) {
-                                        echo "Executing - ${tests[index]}"
+                                        echo "Executing - ${tests[index].Name}"
                                         try {
-                                            bat "\"%UM_PYTHON_PATH%\" ${tests[index]}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
+                                            bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                             if (fileExists("run.log")) {
                                                     String run_id = powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')                             
-                                                    testResults[tests[index]] = "${tests[index]} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                                    testResults[tests[index].Id] = "${tests[index].Name} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                             } else {
-                                                testResults[tests[index]] = "${tests[index]} (Failed) - run.log not generated"
+                                                testResults[tests[index].Id] = "${tests[index].Name} (Failed) - run.log not generated"
                                             }
                                         } catch(Exception ex) {
-                                            testResults[tests[index]] = "${tests[index]} (Failed) - Exception occured: ${ex.getMessage()}"
+                                            testResults[tests[index].Id] = "${tests[index].Name} (Failed) - Exception occured: ${ex.getMessage()}"
                                         } finally{
                                             if (fileExists("result.xml")){
                                                  junit "result.xml"
@@ -50,7 +50,7 @@ node {
                                             }
                                         }
                                     } else {
-                                        testResults[tests[index]] = "${tests[index]} (Failed) - Unable to get scripted test: ${httpCode}"
+                                        testResults[tests[index].Id] = "${tests[index].Name} (Failed) - Unable to get scripted test: ${httpCode}"
                                     }
                                 }
                             }
@@ -107,7 +107,7 @@ def getTests(String baseUrl) {
         def testPage = jsonSlurper.parseText(content)
         testPage.Items.each{ test -> 
             echo "${test.Name} (${test.Id})"
-            tests << test.Id
+            tests << [Id: test.Id, Name: test.Name]
         }
         if (!testPage.Info.HasNext){
             break
