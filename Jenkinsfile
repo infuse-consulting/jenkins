@@ -11,9 +11,9 @@ node {
             ]) {
             // Obtain values for the server url, project name and folder name from a Jenkins config file, which have the ID
             // that matches the name of the current pipeline job.
-            String TEST_SERVICE_URL = "https://tests.api.usemango.co.uk"
-            String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk"
-            String APP_WEBSITE_URL = "https://app.usemango.co.uk"     
+            String TEST_SERVICE_URL = "https://tests.api.usemango.co.uk/v1"
+            String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk/v1"
+            String APP_WEBSITE_URL = "https://app.usemango.co.uk/v1"     
             echo "Running tests in project ${params['Project']} with tags ${params['Tags']}"
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
