@@ -124,7 +124,7 @@ def getTests(String baseUrl) {
 
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "-1", Name: ""]]
-    def isScenarioChoosen = "${params['Scenarios']}".toBoolean()
+    def isScenarioChoosen = "${params['Run with scenarios']}".toBoolean()
     if (isScenarioChoosen) {
         def jsonSlurper = new JsonSlurper()
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
