@@ -40,12 +40,12 @@ node {
                                                 bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}_${scenarioList[scenarioIndex].Id}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                                 if (fileExists("run.log")) {
                                                         String run_id = powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')                             
-                                                        testResults[count] = "TestName: ${tests[index].Name} Scenario: ${scenarioList[scenarioIndex].Name} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                                        testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                                 } else {
-                                                    testResults[count] = "TestName: ${tests[index].Name} Scenario: ${scenarioList[scenarioIndex].Name} (Failed) - run.log not generated"
+                                                    testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Failed) - run.log not generated"
                                                 }
                                             } catch(Exception ex) {
-                                                testResults[count] = "TestName: ${tests[index].Name} Scenario: ${scenarioList[scenarioIndex].Name} (Failed) - Exception occured: ${ex.getMessage()}"
+                                                testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Failed) - Exception occured: ${ex.getMessage()}"
                                             } finally{
                                                 if (fileExists("result.xml")){
                                                     junit "result.xml"
@@ -54,7 +54,7 @@ node {
                                                 }
                                             }
                                         } else {
-                                            testResults[count] = "TestName: ${tests[index].Name} Scenario: ${scenarioList[scenarioIndex].Name} (Failed) - Unable to get scripted test: ${httpCode}"
+                                            testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Failed) - Unable to get scripted test: ${httpCode}"
                                         }
                                         count++
                                     }
@@ -78,7 +78,7 @@ node {
                     passed += 1
                 }
             }
-            echo "Total Executed: ${tests.size()}"
+            echo "Total Executed: ${testResults.size()}"
             echo "Passed: ${passed}"
             echo "Failed: ${failed}"
             if (!allPassed){
@@ -123,7 +123,7 @@ def getTests(String baseUrl) {
 }
 
 def getScenarios(String baseUrl, String testId){
-    def scenarios = [[Id: "-1", Name: ""]]
+    def scenarios = [[Id: "-1", Name: "Default"]]
     def isScenarioChoosen = "${params['Run with scenarios']}".toBoolean()
     if (isScenarioChoosen) {
         def jsonSlurper = new JsonSlurper()
