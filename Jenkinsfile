@@ -117,7 +117,7 @@ def getTests(String baseUrl) {
 
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "-1", Name: "Default"]]
-    def isScenarioChoosen = "${params['Run with scenarios']}".toBoolean()
+    def isScenarioChoosen = "${params['Run with datasets']}".toBoolean()
     if (isScenarioChoosen) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
         String content = getConnectionContent(url, "Scenarios")
