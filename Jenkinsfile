@@ -164,7 +164,7 @@ def getConnectionContent(URL url, String requestedFor) {
     if (conn.responseCode == 200) {
         return conn.getInputStream().getText()
     }
-    throw new Exception("${requestedFor} GET request failed with code: ${responseCode}")
+    throw new Exception("${requestedFor} GET request failed with code: ${conn.responseCode}")
 }
 
 def buildURL(String path, Map<String, String> queryParams) {
@@ -172,5 +172,5 @@ def buildURL(String path, Map<String, String> queryParams) {
 
     path = path + "?"
     queryParams.each{ key, value -> path = path + "${key}=${URLEncoder.encode(value.toString(), "UTF-8") + "&"}" }
-    return new URL(path.substring(0, path.length()))
+    return new URL(path.substring(0, path.length() - 1))
 }
