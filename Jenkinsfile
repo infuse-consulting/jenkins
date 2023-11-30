@@ -13,7 +13,7 @@ node {
             // that matches the name of the current pipeline job.
             String TEST_SERVICE_URL = "https://tests.api.usemango.co.uk/v1"
             String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk/v1"
-            String APP_WEBSITE_URL = "https://app.usemango.co.uk/v1"
+            String APP_WEBSITE_URL = "https://app.usemango.co.uk"
             echo "Running tests in project ${params['Project']} with tags ${params['Tags']}"
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
@@ -39,13 +39,14 @@ node {
                                             try {
                                                 bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}_${scenarioList[scenarioIndex].Id}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                                 if (fileExists("run.log")) {
-                                                        String run_id = powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')                             
+                                                        String run_id = getRunId()                             
                                                         testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                                 } else {
                                                     testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Failed) - run.log not generated"
                                                 }
                                             } catch(Exception ex) {
-                                                testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Failed) - Exception occured: ${ex.getMessage()}"
+                                                String run_id = getRunId()
+                                                testResults[count] = "TestName: '${tests[index].Name}' Scenario: '${scenarioList[scenarioIndex].Name}' (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                             } finally{
                                                 if (fileExists("result.xml")){
                                                     junit "result.xml"
@@ -86,6 +87,11 @@ node {
             }
         }
     }
+}
+
+// Return the run id
+def getRunId() {
+    return powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')
 }
 
 // Read all tests with the tags specified
