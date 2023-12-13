@@ -29,29 +29,33 @@ node {
                             }
                             dir("${env.WORKSPACE}\\${tests[index].Id}") {
                                 ArrayList<LinkedHashMap<String, String>> scenarioList = tests[index].Scenarios
-                                String DATASET_TYPE = "Default_dataset"
+                                String multiDataset = "";
                                 Map<String, String> paramMap = [:]
-                                if (scenarioList.size() > 1) {
-                                    DATASET_TYPE = "Multi_dataset"
+                                if (scenarioList != null) {
+                                    if (scenarioList.size() == 1) {
+                                        multiDataset = "Default Dataset";
+                                    } else {
+                                        multiDataset = "Multi Dataset";
+                                    }
                                     paramMap["scenario"] = getAllScenarioIds(scenarioList)
                                 }
                                 String url = addQueryParameterToUrl(SCRIPTS_SERVICE_URL + "/tests/" + tests[index].Id.toString(), paramMap).toString()
-                                bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${url}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index].Id}_${DATASET_TYPE}.pyz\""
+                                bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${url}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index].Id}.pyz\""
                                 String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")
                                 echo "Test executable response code - ${httpCode}"
                                 if (httpCode.contains("200")) {
-                                    echo "Executing - '${tests[index].Name}' DatasetType: '${DATASET_TYPE}'"
+                                    echo "Executing - '${tests[index].Name}' ${multiDataset}"
                                     try {
-                                        bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}_${DATASET_TYPE}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
+                                        bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                         String run_id = getRunId()
                                         if (runId != null) {
-                                            testResults[count] = "TestName: '${tests[index].Name}' DatasetType: '${DATASET_TYPE}' (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                            testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                         } else {
-                                            testResults[count] = "TestName: '${tests[index].Name}' DatasetType: '${DATASET_TYPE}' (Failed) - run.log not generated"
+                                            testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Failed) - run.log not generated"
                                         }
                                     } catch(Exception ex) {
                                         String run_id = getRunId()
-                                        testResults[count] = "TestName: '${tests[index].Name}' DatasetType: '${DATASET_TYPE}' (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                        testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                     } finally{
                                         if (fileExists("result.xml")){
                                             junit "result.xml"
@@ -60,7 +64,7 @@ node {
                                         }
                                     }
                                 } else {
-                                    testResults[count] = "TestName: '${tests[index].Name}' DatasetType: '${DATASET_TYPE}' (Failed) - Unable to get scripted test: ${httpCode}"
+                                    testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Failed) - Unable to get scripted test: ${httpCode}"
                                 }
                                 count++
                             }
@@ -112,19 +116,7 @@ def getTests(String baseUrl) {
     echo "Retrieved the following tests from project ${params['Project']} with the tags ${params['Tags']} and status ${params['Status']}"
     while(true) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/testindex?tags=${params['Tags']}&status=${params['Status']}&cursor=${cursor}")
-        HttpURLConnection conn = url.openConnection()
-        conn.setRequestMethod("GET")
-        conn.setDoInput(true)
-        conn.setRequestProperty("Authorization", "APIKEY $useMangoApiKey")
-        conn.connect()
-        String content
-        def responseCode = conn.responseCode
-        if (responseCode == 200) {
-            InputStream inputStream = conn.getInputStream()
-            content = inputStream.getText()
-        } else {
-            throw new Exception("Testindex get request failed with code: ${responseCode}")
-        }
+        String content = getWebResponseContent(url, "Testindex")
         def testPage = jsonSlurper.parseText(content)
         testPage.Items.each{ test ->
             def scenarios = getScenarios(baseUrl, test.Id)
@@ -141,22 +133,11 @@ def getTests(String baseUrl) {
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "0", Name: "Default"]]
     def isScenarioChoosen = "${params['Run with datasets']}".toBoolean()
-    if (isScenarioChoosen) {
+    def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
+    if (isScenarioChoosen && isScenarioPresentForTest) {
         def jsonSlurper = new JsonSlurper()
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
-        HttpURLConnection conn = url.openConnection()
-        conn.setRequestMethod("GET")
-        conn.setDoInput(true)
-        conn.setRequestProperty("Authorization", "APIKEY $useMangoApiKey")
-        conn.connect()
-        String content
-        def responseCode = conn.responseCode
-        if (responseCode == 200) {
-            InputStream inputStream = conn.getInputStream()
-            content = inputStream.getText()
-        } else {
-            throw new Exception("Scenarios get request failed with code: ${responseCode}")
-        }
+        String content = getWebResponseContent(url, "Scenarios")
         def scenarioPage = jsonSlurper.parseText(content)
         if (scenarioPage != null) {
             scenarioPage.each { scenario ->
@@ -164,8 +145,9 @@ def getScenarios(String baseUrl, String testId){
                 scenarios << [Id: scenario.Id, Name: scenario.Name]
             }
         }
+        return scenarios;
     }
-    return scenarios
+    return null
 }
 
 def getAllScenarioIds(ArrayList<LinkedHashMap<String, String>> scenarioList) {
@@ -193,4 +175,24 @@ def addQueryParameterToUrl(String path, Map<String, Object> queryParams) {
         }
     }
     return new URL(path.substring(0, path.length() - 1))
+}
+
+boolean scenariosPresent(String baseUrl, String testId) {
+    def jsonSlurper = new JsonSlurper()
+    URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}")
+    String content = getWebResponseContent(url, "Dataset");
+    def scenarioPage = jsonSlurper.parseText(content)
+    return scenarioPage["Parameters"].size() >= 1
+}
+
+def getWebResponseContent(URL url, String requestedFor) {
+    HttpURLConnection conn = url.openConnection()
+    conn.setRequestMethod("GET")
+    conn.setDoInput(true)
+    conn.setRequestProperty("Authorization", "APIKEY $useMangoApiKey")
+    conn.connect()
+    if (conn.responseCode == 200) {
+        return conn.getInputStream().getText()
+    }
+    throw new Exception("${requestedFor} GET request failed with code: ${conn.responseCode}")
 }
