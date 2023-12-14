@@ -1,7 +1,8 @@
 #!groovy
-import groovy.json.JsonOutput
-import groovy.json.JsonBuilder
+
 import groovy.json.JsonSlurper
+
+import java.util.stream.Collectors
 
 node {
     stage('Read and Execute tests') {
@@ -28,16 +29,16 @@ node {
                                 deleteDir()
                             }
                             dir("${env.WORKSPACE}\\${tests[index].Id}") {
-                                ArrayList<LinkedHashMap<String, String>> scenarioList = tests[index].Scenarios
+                                List<Map<String, String>> scenarioList = tests[index].Scenarios
                                 String multiDataset = "";
                                 Map<String, String> paramMap = [:]
                                 if (scenarioList != null) {
                                     if (scenarioList.size() == 1) {
                                         multiDataset = "Default Dataset";
                                     } else {
-                                        multiDataset = "Multi Dataset";
+                                        multiDataset = "Multi Dataset" + scenarioList.collect { it.Name}
                                     }
-                                    paramMap["scenario"] = getAllScenarioIds(scenarioList)
+                                    paramMap["scenario"] = scenarioList.collect { it.Id}
                                 }
                                 String url = addQueryParameterToUrl(SCRIPTS_SERVICE_URL + "/tests/" + tests[index].Id.toString(), paramMap).toString()
                                 bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${url}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index].Id}.pyz\""
@@ -116,8 +117,7 @@ def getTests(String baseUrl) {
     echo "Retrieved the following tests from project ${params['Project']} with the tags ${params['Tags']} and status ${params['Status']}"
     while(true) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/testindex?tags=${params['Tags']}&status=${params['Status']}&cursor=${cursor}")
-        String content = getWebResponseContent(url, "Testindex")
-        def testPage = jsonSlurper.parseText(content)
+        def testPage = fetchJsonWithGetRequest(url, "Testindex")
         testPage.Items.each{ test ->
             def scenarios = getScenarios(baseUrl, test.Id)
             tests << [Id: test.Id, Name: test.Name, Scenarios: scenarios]
@@ -135,27 +135,16 @@ def getScenarios(String baseUrl, String testId){
     def isScenarioChoosen = "${params['Run with datasets']}".toBoolean()
     def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
     if (isScenarioChoosen && isScenarioPresentForTest) {
-        def jsonSlurper = new JsonSlurper()
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
-        String content = getWebResponseContent(url, "Scenarios")
-        def scenarioPage = jsonSlurper.parseText(content)
+        def scenarioPage = fetchJsonWithGetRequest(url, "Scenarios")
         if (scenarioPage != null) {
             scenarioPage.each { scenario ->
-                echo "${scenario.Name}"
                 scenarios << [Id: scenario.Id, Name: scenario.Name]
             }
         }
         return scenarios;
     }
     return null
-}
-
-def getAllScenarioIds(ArrayList<LinkedHashMap<String, String>> scenarioList) {
-    def listOfIds = []
-    scenarioList.each { item ->
-        listOfIds << item.Id
-    }
-    return listOfIds;
 }
 
 def addQueryParameterToUrl(String path, Map<String, Object> queryParams) {
@@ -178,21 +167,20 @@ def addQueryParameterToUrl(String path, Map<String, Object> queryParams) {
 }
 
 boolean scenariosPresent(String baseUrl, String testId) {
-    def jsonSlurper = new JsonSlurper()
     URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}")
-    String content = getWebResponseContent(url, "Dataset");
-    def scenarioPage = jsonSlurper.parseText(content)
+    def scenarioPage = fetchJsonWithGetRequest(url, "Dataset");
     return scenarioPage["Parameters"].size() >= 1
 }
 
-def getWebResponseContent(URL url, String requestedFor) {
+def fetchJsonWithGetRequest(URL url, String requestedFor) {
     HttpURLConnection conn = url.openConnection()
     conn.setRequestMethod("GET")
     conn.setDoInput(true)
     conn.setRequestProperty("Authorization", "APIKEY $useMangoApiKey")
     conn.connect()
     if (conn.responseCode == 200) {
-        return conn.getInputStream().getText()
+        String content = conn.getInputStream().getText()
+        return new JsonSlurper().parseText(content)
     }
     throw new Exception("${requestedFor} GET request failed with code: ${conn.responseCode}")
 }
