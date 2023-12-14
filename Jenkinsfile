@@ -2,8 +2,6 @@
 
 import groovy.json.JsonSlurper
 
-import java.util.stream.Collectors
-
 node {
     stage('Read and Execute tests') {
         // Obtain credentials for accessing the useMango server, which should be stored in Jenkins with the ID of 'usemango'
