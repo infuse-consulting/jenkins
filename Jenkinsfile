@@ -1,5 +1,4 @@
 #!groovy
-
 import groovy.json.JsonSlurper
 
 node {
@@ -27,14 +26,16 @@ node {
                                 deleteDir()
                             }
                             dir("${env.WORKSPACE}\\${tests[index].Id}") {
-                                List<Map<String, String>> scenarioList = tests[index].Scenarios
-                                String multiDataset = "";
-                                Map<String, String> paramMap = [:]
+                                List<Map> scenarioList = tests[index].Scenarios
+                                String datasetType = "";
+                                Map paramMap = [:]
+                                boolean isMultiDataset = false;
                                 if (scenarioList != null) {
                                     if (scenarioList.size() == 1) {
-                                        multiDataset = "Default Dataset";
+                                        datasetType = "Default Dataset";
                                     } else {
-                                        multiDataset = "Multi Dataset" + scenarioList.collect { it.Name}
+                                        isMultiDataset = true
+                                        datasetType = "Multi Dataset [ Dataset Count=${scenarioList.size()} ]"
                                     }
                                     paramMap["scenario"] = scenarioList.collect { it.Id}
                                 }
@@ -43,18 +44,18 @@ node {
                                 String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")
                                 echo "Test executable response code - ${httpCode}"
                                 if (httpCode.contains("200")) {
-                                    echo "Executing - '${tests[index].Name}' ${multiDataset}"
+                                    echo "Executing - '${tests[index].Name}' ${datasetType}"
                                     try {
                                         bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                         String run_id = getRunId()
-                                        if (runId != null) {
-                                            testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                        if (run_id != null) {
+                                            testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                         } else {
-                                            testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Failed) - run.log not generated"
+                                            testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Failed) - ${isMultiDataset ? 'multidataset_run.log' : 'run.log' } not generated"
                                         }
                                     } catch(Exception ex) {
                                         String run_id = getRunId()
-                                        testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                        testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
                                     } finally{
                                         if (fileExists("result.xml")){
                                             junit "result.xml"
@@ -63,7 +64,7 @@ node {
                                         }
                                     }
                                 } else {
-                                    testResults[count] = "TestName: '${tests[index].Name}' ${multiDataset} (Failed) - Unable to get scripted test: ${httpCode}"
+                                    testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Failed) - Unable to get scripted test: ${httpCode}"
                                 }
                                 count++
                             }
@@ -96,7 +97,6 @@ node {
     }
 }
 
-// Return the run id
 def getRunId() {
     if (fileExists("multidataset_run.log")) {
         return powershell(returnStdout: true, script: 'Write-Output (Get-Content .\\multidataset_run.log | select -First 1 | Select-String -Pattern \'.*\\"RunId\\": \\"([^\\"]*)\\"\').Matches.Groups[1].Value')
@@ -115,7 +115,7 @@ def getTests(String baseUrl) {
     echo "Retrieved the following tests from project ${params['Project']} with the tags ${params['Tags']} and status ${params['Status']}"
     while(true) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/testindex?tags=${params['Tags']}&status=${params['Status']}&cursor=${cursor}")
-        def testPage = fetchJsonWithGetRequest(url, "Testindex")
+        def testPage = getRequest(url, "Testindex")
         testPage.Items.each{ test ->
             def scenarios = getScenarios(baseUrl, test.Id)
             tests << [Id: test.Id, Name: test.Name, Scenarios: scenarios]
@@ -134,7 +134,7 @@ def getScenarios(String baseUrl, String testId){
     def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
     if (isScenarioChoosen && isScenarioPresentForTest) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
-        def scenarioPage = fetchJsonWithGetRequest(url, "Scenarios")
+        def scenarioPage = getRequest(url, "Scenarios")
         if (scenarioPage != null) {
             scenarioPage.each { scenario ->
                 scenarios << [Id: scenario.Id, Name: scenario.Name]
@@ -166,11 +166,11 @@ def addQueryParameterToUrl(String path, Map<String, Object> queryParams) {
 
 boolean scenariosPresent(String baseUrl, String testId) {
     URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}")
-    def scenarioPage = fetchJsonWithGetRequest(url, "Dataset");
+    def scenarioPage = getRequest(url, "Dataset");
     return scenarioPage["Parameters"].size() >= 1
 }
 
-def fetchJsonWithGetRequest(URL url, String requestedFor) {
+def getRequest(URL url, String requestedFor) {
     HttpURLConnection conn = url.openConnection()
     conn.setRequestMethod("GET")
     conn.setDoInput(true)
