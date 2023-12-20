@@ -130,9 +130,9 @@ def getTests(String baseUrl) {
 
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "0", Name: "Default"]]
-    def selectedRunWithDataset = hasUserSelectedRunWithDataset()
+    def runWithDataset = isRunWithDatasetOptionSelected()
     def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
-    if (selectedRunWithDataset && isScenarioPresentForTest) {
+    if (runWithDataset && isScenarioPresentForTest) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
         def scenarioPage = getRequest(url, "Scenarios")
         if (scenarioPage != null) {
@@ -170,7 +170,7 @@ boolean scenariosPresent(String baseUrl, String testId) {
     return scenarioPage["Parameters"].size() >= 1
 }
 
-boolean hasUserSelectedRunWithDataset() {
+boolean isRunWithDatasetOptionSelected() {
     def value = params['Run with datasets']
     if (value != null) {
         return value
