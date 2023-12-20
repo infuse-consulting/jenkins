@@ -130,9 +130,9 @@ def getTests(String baseUrl) {
 
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "0", Name: "Default"]]
-    def isScenarioChoosen = "${params['Run with datasets']}".toBoolean()
+    def selectedRunWithDataset = hasUserSelectedRunWithDataset()
     def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
-    if (isScenarioChoosen && isScenarioPresentForTest) {
+    if (selectedRunWithDataset && isScenarioPresentForTest) {
         URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
         def scenarioPage = getRequest(url, "Scenarios")
         if (scenarioPage != null) {
@@ -168,6 +168,18 @@ boolean scenariosPresent(String baseUrl, String testId) {
     URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}")
     def scenarioPage = getRequest(url, "Dataset");
     return scenarioPage["Parameters"].size() >= 1
+}
+
+boolean hasUserSelectedRunWithDataset() {
+    def value = params['Run with datasets']
+    if (value != null) {
+        return value
+    }
+    // backward compatibility
+    value = params['Run with scenarios']
+    if (value != null) {
+        return value
+    }
 }
 
 def getRequest(URL url, String requestedFor) {
