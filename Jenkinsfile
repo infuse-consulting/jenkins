@@ -13,6 +13,7 @@ node {
             String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk/v1"
             String APP_WEBSITE_URL = "https://app.usemango.co.uk"
             echo "Running tests in project ${params['Project']} with tags ${params['Tags']}"
+            def envId = getEnvId(TEST_SERVICE_URL)
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
             def testResults = [:]
@@ -39,6 +40,7 @@ node {
                                     }
                                     paramMap["scenario"] = scenarioList.collect { it.Id}
                                 }
+                                paramMap["environment"] = envId
                                 String url = addQueryParameterToUrl(SCRIPTS_SERVICE_URL + "/tests/" + tests[index].Id.toString(), paramMap).toString()
                                 bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${url}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index].Id}.pyz\""
                                 String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")
@@ -76,7 +78,7 @@ node {
             boolean allPassed = true
             int passed = 0
             int failed = 0
-            echo "useMango Execution results: "
+            echo "useMango Execution on ${params['Environment']} environment results: "
             testResults.eachWithIndex { result, index ->
                 echo "${index + 1}. ${result.value}"
                 if (result.value.contains("Failed")){
@@ -86,34 +88,9 @@ node {
                 else {
                     passed += 1
                 }
-              }
             }
-          }
         }
-      }
-      parallel testJobs
-      boolean allPassed = true
-      int passed = 0
-      int failed = 0
-      echo "useMango Execution results: "
-      testResults.eachWithIndex { result, index ->
-        echo "${index + 1}. ${result.value}"
-        if (result.value.contains("Failed")){
-          allPassed = false
-          failed += 1
-        }
-        else {
-          passed += 1
-        }
-      }
-      echo "Total Executed: ${testResults.size()}"
-      echo "Passed: ${passed}"
-      echo "Failed: ${failed}"
-      if (!allPassed){
-        error("Not all the tests passed.")
-      }
     }
-  }
 }
 
 def getRunId() {
@@ -144,27 +121,24 @@ def getTests(String baseUrl) {
         }
         cursor = testPage.Info.Next
     }
-    if (!testPage.Info.HasNext){
-      break
-    }
-    cursor = testPage.Info.Next
-  }
-  return tests
+    return tests
 }
 
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "0", Name: "Default"]]
     def runWithDataset = isRunWithDatasetOptionSelected()
-    def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
-    if (runWithDataset && isScenarioPresentForTest) {
-        URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
-        def scenarioPage = getRequest(url, "Scenarios")
-        if (scenarioPage != null) {
-            scenarioPage.each { scenario ->
-                scenarios << [Id: scenario.Id, Name: scenario.Name]
+    if (runWithDataset) {
+        def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
+        if (isScenarioPresentForTest) {
+            URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
+            def scenarioPage = getRequest(url, "Scenarios")
+            if (scenarioPage != null) {
+                scenarioPage.each { scenario ->
+                    scenarios << [Id: scenario.Id, Name: scenario.Name]
+                }
             }
+            return scenarios;
         }
-        return scenarios;
     }
     return null
 }
@@ -204,6 +178,27 @@ boolean isRunWithDatasetOptionSelected() {
     if (value != null) {
         return value
     }
+}
+
+def getEnvId(String baseUrl) {
+    String cursor = ""
+    echo "Retrieving environment based on EnvName"
+    boolean fetchEnvironmentPage = true
+    while (fetchEnvironmentPage) {
+        URL url = addQueryParameterToUrl("${baseUrl}/projects/${params['Project']}/environments", [
+                q: params['Environment'].toString(),
+                cursor: cursor
+        ])
+        def environments = getRequest(url, "Environment");
+        for (environment in environments["Items"]) {
+            if (environment["Name"].toString() == "${params['Environment']}".toString()) {
+                return environment["Id"]
+            }
+        }
+        cursor = environments.Info.Next
+        fetchEnvironmentPage = environments.Info.HasNext
+    }
+    throw new NoSuchElementException("The ${params['Environment']} environment does not exists")
 }
 
 def getRequest(URL url, String requestedFor) {
