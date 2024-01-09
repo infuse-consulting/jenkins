@@ -91,7 +91,7 @@ node {
             }
             String testsExecutedMsg = "Total Tests: ${testResults.size()}"
             if (isRunWithDatasetOptionSelected()) {
-                message += " NOTE: This represents the number of tests run. The consolidated report for each test contains information about the datasets executed."
+                testsExecutedMsg += " NOTE: This represents the number of tests run. The consolidated report for each test contains information about the datasets executed."
             }
             echo testsExecutedMsg
             echo "Passed: ${passed}"
