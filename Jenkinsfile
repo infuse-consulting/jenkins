@@ -36,7 +36,7 @@ node {
                                         datasetType = "Default Dataset";
                                     } else {
                                         isMultiDataset = true
-                                        datasetType = "Multi Dataset [ Dataset Count=${scenarioList.size()} ]"
+                                        datasetType = "Multi Dataset 'Dataset Count=${scenarioList.size()}'"
                                     }
                                     paramMap["scenario"] = scenarioList.collect { it.Id}
                                 }
@@ -78,7 +78,7 @@ node {
             boolean allPassed = true
             int passed = 0
             int failed = 0
-            echo "useMango Execution on [${envName}] environment, results: "
+            echo "useMango Execution on '${envName}' environment, results: "
             testResults.eachWithIndex { result, index ->
                 echo "${index + 1}. ${result.value}"
                 if (result.value.contains("Failed")){
@@ -88,6 +88,15 @@ node {
                 else {
                     passed += 1
                 }
+            }
+            echo "Total Tests: ${testResults.size()}"
+            echo "Passed: ${passed}"
+            echo "Failed: ${failed}"
+            if (isRunWithDatasetOptionSelected()) {
+                echo "Info: Total Tests count is exclusive of number of datasets/scenarios used inside the tests."
+            }
+            if (!allPassed){
+                error("Not all the tests passed.")
             }
         }
     }
@@ -184,12 +193,12 @@ def getEnvIdAndName(String baseUrl) {
     echo "Retrieving environment"
     if (params['Environment'] == null || params['Environment'].toString().isEmpty()) {
         def (envId, envName) = getDefaultEnv(baseUrl);
-        echo "Using the current default environment [ ${envName} ]"
+        echo "Using the current default environment '${envName}'"
         return [envId, envName];
     }
-    def env = getEnvBasedOnName(baseUrl, params['Environment'].toString());
+    def env = getEnvByName(baseUrl, params['Environment'].toString());
     if (env == null) {
-        throw new NoSuchElementException("The ${params['Environment']} environment does not exists")
+        throw new NoSuchElementException("The '${params['Environment']}' environment does not exists")
     }
     return env;
 }
@@ -197,14 +206,10 @@ def getEnvIdAndName(String baseUrl) {
 def getDefaultEnv(String baseUrl) {
     URL url = new URL("${baseUrl}/projects/${params['Project']}/environments/default");
     def environment = getRequest(url, "Default Environment");
-    if (environment["IsDefault"] == true) {
-        return [environment["Id"], environment["Name"]]
-    } else {
-        throw new RuntimeException("Project with no default environment")
-    }
+    return [environment["Id"], environment["Name"]]
 }
 
-def getEnvBasedOnName(String baseUrl, String envName) {
+def getEnvByName(String baseUrl, String envName) {
     String cursor = ""
     boolean fetchEnvironmentPage = true
     while (fetchEnvironmentPage) {
