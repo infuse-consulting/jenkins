@@ -13,7 +13,7 @@ node {
             String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk/v1"
             String APP_WEBSITE_URL = "https://app.usemango.co.uk"
             echo "Running tests in project ${params['Project']} with tags ${params['Tags']}"
-            def envId = getEnvId(TEST_SERVICE_URL)
+            def (envId, envName) = getEnvId(TEST_SERVICE_URL)
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
             def testResults = [:]
@@ -78,7 +78,7 @@ node {
             boolean allPassed = true
             int passed = 0
             int failed = 0
-            echo "useMango Execution on ${params['Environment']} environment results: "
+            echo "useMango Execution on [${envName}] environment, results: "
             testResults.eachWithIndex { result, index ->
                 echo "${index + 1}. ${result.value}"
                 if (result.value.contains("Failed")){
@@ -182,23 +182,36 @@ boolean isRunWithDatasetOptionSelected() {
 
 def getEnvId(String baseUrl) {
     String cursor = ""
-    echo "Retrieving environment based on EnvName"
+    echo "Retrieving environment"
     boolean fetchEnvironmentPage = true
     while (fetchEnvironmentPage) {
-        URL url = addQueryParameterToUrl("${baseUrl}/projects/${params['Project']}/environments", [
-                q: params['Environment'].toString(),
-                cursor: cursor
-        ])
+        URL url = addQueryParameterToUrl("${baseUrl}/projects/${params['Project']}/environments", getQueryParams(params['Environment'], cursor))
         def environments = getRequest(url, "Environment");
         for (environment in environments["Items"]) {
-            if (environment["Name"].toString() == "${params['Environment']}".toString()) {
-                return environment["Id"]
+            if (params['Environment'] == null || params['Environment'].toString().isEmpty()) {
+                if (environment["IsDefault"] == true) {
+                    echo "Using the current default environment [ ${environment["Name"]} ]"
+                    return [environment["Id"], environment["Name"]]
+                }
+            }
+            else if (environment["Name"].toString() == "${params['Environment']}".toString()) {
+                return [environment["Id"], environment["Name"]]
             }
         }
         cursor = environments.Info.Next
         fetchEnvironmentPage = environments.Info.HasNext
     }
     throw new NoSuchElementException("The ${params['Environment']} environment does not exists")
+}
+
+def getQueryParams(def userGivenEnvName, String cursor) {
+    def queryParams = [
+            cursor: cursor
+    ]
+    if (userGivenEnvName != null) {
+        queryParams.q = userGivenEnvName.toString()
+    }
+    return queryParams;
 }
 
 def getRequest(URL url, String requestedFor) {
