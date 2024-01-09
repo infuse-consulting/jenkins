@@ -89,12 +89,13 @@ node {
                     passed += 1
                 }
             }
-            echo "Total Tests: ${testResults.size()}"
+            String testsExecutedMsg = "Total Tests: ${testResults.size()}"
+            if (isRunWithDatasetOptionSelected()) {
+                message += " NOTE: This represents the number of tests run. The consolidated report for each test contains information about the datasets executed."
+            }
+            echo testsExecutedMsg
             echo "Passed: ${passed}"
             echo "Failed: ${failed}"
-            if (isRunWithDatasetOptionSelected()) {
-                echo "Info: Total Tests count is exclusive of number of datasets/scenarios used inside the tests."
-            }
             if (!allPassed){
                 error("Not all the tests passed.")
             }
