@@ -13,6 +13,7 @@ node {
             String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk/v1"
             String APP_WEBSITE_URL = "https://app.usemango.co.uk"
             echo "Running tests in project ${params['Project']} with tags ${params['Tags']}"
+            def (envId, envName) = getEnvIdAndName(TEST_SERVICE_URL)
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
             def testResults = [:]
@@ -35,10 +36,11 @@ node {
                                         datasetType = "Default Dataset";
                                     } else {
                                         isMultiDataset = true
-                                        datasetType = "Multi Dataset [ Dataset Count=${scenarioList.size()} ]"
+                                        datasetType = "Multi Dataset 'Dataset Count=${scenarioList.size()}'"
                                     }
                                     paramMap["scenario"] = scenarioList.collect { it.Id}
                                 }
+                                paramMap["environment"] = envId
                                 String url = addQueryParameterToUrl(SCRIPTS_SERVICE_URL + "/tests/" + tests[index].Id.toString(), paramMap).toString()
                                 bat "curl -s --create-dirs -L -D \"response.txt\" -X GET \"${url}\" -H \"Authorization: APIKEY " + '%useMangoApiKey%' +"\" --output \"${tests[index].Id}.pyz\""
                                 String httpCode = powershell(returnStdout: true, script: "Write-Output (Get-Content \"response.txt\" | select -First 1 | Select-String -Pattern '.*HTTP/1.1 ([^\\\"]*) *').Matches.Groups[1].Value")
@@ -76,7 +78,7 @@ node {
             boolean allPassed = true
             int passed = 0
             int failed = 0
-            echo "useMango Execution results: "
+            echo "useMango Execution on '${envName}' environment, results: "
             testResults.eachWithIndex { result, index ->
                 echo "${index + 1}. ${result.value}"
                 if (result.value.contains("Failed")){
@@ -87,7 +89,11 @@ node {
                     passed += 1
                 }
             }
-            echo "Total Executed: ${testResults.size()}"
+            String testsExecutedMsg = "Total Tests: ${testResults.size()}"
+            if (isRunWithDatasetOptionSelected()) {
+                testsExecutedMsg += " NOTE: This represents the number of tests run. The consolidated report for each test contains information about the datasets executed."
+            }
+            echo testsExecutedMsg
             echo "Passed: ${passed}"
             echo "Failed: ${failed}"
             if (!allPassed){
@@ -131,16 +137,18 @@ def getTests(String baseUrl) {
 def getScenarios(String baseUrl, String testId){
     def scenarios = [[Id: "0", Name: "Default"]]
     def runWithDataset = isRunWithDatasetOptionSelected()
-    def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
-    if (runWithDataset && isScenarioPresentForTest) {
-        URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
-        def scenarioPage = getRequest(url, "Scenarios")
-        if (scenarioPage != null) {
-            scenarioPage.each { scenario ->
-                scenarios << [Id: scenario.Id, Name: scenario.Name]
+    if (runWithDataset) {
+        def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
+        if (isScenarioPresentForTest) {
+            URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
+            def scenarioPage = getRequest(url, "Scenarios")
+            if (scenarioPage != null) {
+                scenarioPage.each { scenario ->
+                    scenarios << [Id: scenario.Id, Name: scenario.Name]
+                }
             }
+            return scenarios;
         }
-        return scenarios;
     }
     return null
 }
@@ -180,6 +188,46 @@ boolean isRunWithDatasetOptionSelected() {
     if (value != null) {
         return value
     }
+}
+
+def getEnvIdAndName(String baseUrl) {
+    echo "Retrieving environment"
+    if (params['Environment'] == null || params['Environment'].toString().isEmpty()) {
+        def (envId, envName) = getDefaultEnv(baseUrl);
+        echo "Using the current default environment '${envName}'"
+        return [envId, envName];
+    }
+    def env = getEnvByName(baseUrl, params['Environment'].toString());
+    if (env == null) {
+        throw new NoSuchElementException("The '${params['Environment']}' environment does not exists")
+    }
+    return env;
+}
+
+def getDefaultEnv(String baseUrl) {
+    URL url = new URL("${baseUrl}/projects/${params['Project']}/environments/default");
+    def environment = getRequest(url, "Default Environment");
+    return [environment["Id"], environment["Name"]]
+}
+
+def getEnvByName(String baseUrl, String envName) {
+    String cursor = ""
+    boolean fetchEnvironmentPage = true
+    while (fetchEnvironmentPage) {
+        URL url = addQueryParameterToUrl("${baseUrl}/projects/${params['Project']}/environments",  [
+                q: envName,
+                cursor: cursor
+        ])
+        def environments = getRequest(url, "Environment");
+        for (environment in environments["Items"]) {
+            if (environment["Name"].toString() == envName) {
+                return [environment["Id"], environment["Name"]]
+            }
+        }
+        cursor = environments.Info.Next
+        fetchEnvironmentPage = environments.Info.HasNext
+    }
+    return null;
 }
 
 def getRequest(URL url, String requestedFor) {
