@@ -12,7 +12,7 @@ node {
             String TEST_SERVICE_URL = "https://tests.api.usemango.co.uk/v1"
             String SCRIPTS_SERVICE_URL = "https://scripts.api.usemango.co.uk/v1"
             String APP_WEBSITE_URL = "https://app.usemango.co.uk"
-            echo "Running tests in project ${params['Project']} with tags ${params['Tags']}"
+            echo "Running tests in project ${params['Project ID']} with tags ${params['Tags']}"
             def (envId, envName) = getEnvIdAndName(TEST_SERVICE_URL)
             def tests = getTests(TEST_SERVICE_URL)
             def testJobs = [:]
@@ -51,13 +51,13 @@ node {
                                         bat "\"%UM_PYTHON_PATH%\" ${tests[index].Id}.pyz -k " + '%useMangoApiKey%' + " -j result.xml"
                                         String run_id = getRunId()
                                         if (run_id != null) {
-                                            testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                            testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Passed) - ${APP_WEBSITE_URL}/p/${params['Project ID']}/executions/${run_id}"
                                         } else {
                                             testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Failed) - ${isMultiDataset ? 'multidataset_run.log' : 'run.log' } not generated"
                                         }
                                     } catch(Exception ex) {
                                         String run_id = getRunId()
-                                        testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project']}/executions/${run_id}"
+                                        testResults[count] = "TestName: '${tests[index].Name}' ${datasetType} (Failed) - Exception occured: ${ex.getMessage()} - ${APP_WEBSITE_URL}/p/${params['Project ID']}/executions/${run_id}"
                                     } finally{
                                         if (fileExists("result.xml")){
                                             junit "result.xml"
@@ -118,9 +118,9 @@ def getTests(String baseUrl) {
     String cursor = ""
     def tests = []
     def jsonSlurper = new JsonSlurper()
-    echo "Retrieved the following tests from project ${params['Project']} with the tags ${params['Tags']} and status ${params['Status']}"
+    echo "Retrieved the following tests from project ${params['Project ID']} with the tags ${params['Tags']} and status ${params['Status']}"
     while(true) {
-        URL url = new URL("${baseUrl}/projects/${params['Project']}/testindex?tags=${params['Tags']}&status=${params['Status']}&cursor=${cursor}")
+        URL url = new URL("${baseUrl}/projects/${params['Project ID']}/testindex?tags=${params['Tags']}&status=${params['Status']}&cursor=${cursor}")
         def testPage = getRequest(url, "Testindex")
         testPage.Items.each{ test ->
             def scenarios = getScenarios(baseUrl, test.Id)
@@ -140,7 +140,7 @@ def getScenarios(String baseUrl, String testId){
     if (runWithDataset) {
         def isScenarioPresentForTest = scenariosPresent(baseUrl, testId)
         if (isScenarioPresentForTest) {
-            URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}/scenarios")
+            URL url = new URL("${baseUrl}/projects/${params['Project ID']}/tests/${testId}/scenarios")
             def scenarioPage = getRequest(url, "Scenarios")
             if (scenarioPage != null) {
                 scenarioPage.each { scenario ->
@@ -173,7 +173,7 @@ def addQueryParameterToUrl(String path, Map<String, Object> queryParams) {
 }
 
 boolean scenariosPresent(String baseUrl, String testId) {
-    URL url = new URL("${baseUrl}/projects/${params['Project']}/tests/${testId}")
+    URL url = new URL("${baseUrl}/projects/${params['Project ID']}/tests/${testId}")
     def scenarioPage = getRequest(url, "Dataset");
     return scenarioPage["Parameters"].size() >= 1
 }
@@ -205,7 +205,7 @@ def getEnvIdAndName(String baseUrl) {
 }
 
 def getDefaultEnv(String baseUrl) {
-    URL url = new URL("${baseUrl}/projects/${params['Project']}/environments/default");
+    URL url = new URL("${baseUrl}/projects/${params['Project ID']}/environments/default");
     def environment = getRequest(url, "Default Environment");
     return [environment["Id"], environment["Name"]]
 }
@@ -214,7 +214,7 @@ def getEnvByName(String baseUrl, String envName) {
     String cursor = ""
     boolean fetchEnvironmentPage = true
     while (fetchEnvironmentPage) {
-        URL url = addQueryParameterToUrl("${baseUrl}/projects/${params['Project']}/environments",  [
+        URL url = addQueryParameterToUrl("${baseUrl}/projects/${params['Project ID']}/environments",  [
                 q: envName,
                 cursor: cursor
         ])
